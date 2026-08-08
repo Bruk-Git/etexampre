@@ -1,0 +1,114 @@
+<!-- frontend/register.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register - Ethiopian Exam Prep</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/auth.css" />
+  </head>
+  <body>
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <a href="/" class="auth-logo">📚 ExamPrep</a>
+          <h1>Create Account</h1>
+          <p>Start your exam preparation journey</p>
+        </div>
+
+        <div id="messageBox"></div>
+
+        <form id="registerForm" class="auth-form">
+          <div class="form-group">
+            <label for="fullName">Full Name</label>
+            <input
+              type="text"
+              id="fullName"
+              name="fullName"
+              placeholder="Your full name"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="your@email.com"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone (Optional)</label>
+            <input type="tel" id="phone" name="phone" placeholder="+251..." />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="grade">Grade/Level</label>
+              <select id="grade" name="grade">
+                <option value="">Select level</option>
+                <option value="6th">6th Grade</option>
+                <option value="8th">8th Grade</option>
+                <option value="12th">12th Grade</option>
+                <option value="University">University</option>
+                <option value="Graduate">Graduate</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="institution">Institution (Optional)</label>
+              <input
+                type="text"
+                id="institution"
+                name="institution"
+                placeholder="School/University"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="Minimum 6 characters"
+              required
+              minlength="6"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              placeholder="Confirm your password"
+              required
+            />
+          </div>
+
+          <button type="submit" class="auth-btn">
+            <span class="btn-text">Create Account</span>
+            <span class="btn-loader" style="display: none"
+              >Creating account...</span
+            >
+          </button>
+        </form>
+
+        <div class="auth-footer">
+          <p>Already have an account? <a href="/login">Login here</a></p>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+  </body>
+</html>
