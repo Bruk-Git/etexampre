@@ -1,0 +1,104 @@
+/* =============================================
+   DASHBOARD PAGE STYLES
+   ============================================= */
+
+.dashboard {
+  padding: 40px 20px;
+}
+
+/* Welcome Section */
+.welcome-section {
+  margin-bottom: 40px;
+  padding: 30px;
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-radius: 12px;
+}
+
+.welcome-section h1 {
+  font-size: 2rem;
+  color: #1e3a8a;
+  margin-bottom: 8px;
+}
+
+.welcome-section p {
+  color: #4b5563;
+  font-size: 1.1rem;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.stat-icon {
+  font-size: 2rem;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--text);
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+
+/* Dashboard Exam Cards */
+.exam-card {
+  position: relative;
+}
+
+.exam-card .exam-progress {
+  margin-top: 15px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-section {
+    padding: 20px;
+  }
+
+  .welcome-section h1 {
+    font-size: 1.5rem;
+  }
+}

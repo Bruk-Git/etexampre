@@ -1,161 +1,100 @@
 const { Pool } = require("pg");
 require("dotenv").config();
 
+// Create pool with connection settings
 const pool = new Pool({
   host: process.env.DB_HOST || "localhost",
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || "exam_prep",
   user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  max: 20, // Maximum number of clients
+  password: process.env.DB_PASSWORD || "",
+  max: 20,
   idleTimeoutMillis: 30000,
 });
 
 // Test connection
 pool.on("connect", () => {
-  console.log("Connected to PostgreSQL database");
+  console.log("✅ Connected to PostgreSQL database");
 });
 
 pool.on("error", (err) => {
-  console.error("Unexpected error on idle client", err);
-  process.exit(-1);
+  console.error("❌ Database error:", err.message);
 });
 
-// Initialize database tables
+// Initialize database - create tables if they don't exist
 async function initializeDatabase() {
-  const fs = require("fs");
-  const path = require("path");
-
   try {
-    const schema = fs.readFileSync(
-      path.join(__dirname, "..", "database", "schema.sql"),
-      "utf8",
-    );
+    console.log("📝 Checking database tables...");
 
-    await pool.query(schema);
-    console.log("Database tables initialized");
-
-    // Insert default data if not exists
-    await seedDefaultData();
-  } catch (error) {
-    console.error("Error initializing database:", error);
-  }
-}
-
-// Seed default exam types and subjects
-async function seedDefaultData() {
-  const { rows: examCount } = await pool.query(
-    "SELECT COUNT(*) FROM exam_types",
-  );
-
-  if (parseInt(examCount[0].count) === 0) {
-    const exams = [
-      {
-        name: "Grade 12 Entrance Exam",
-        slug: "grade-12-entrance",
-        description: "Ethiopian Higher Education Entrance Examination (EHEEE)",
-        icon: "🎓",
-        order: 1,
-      },
-      {
-        name: "Grade 6 Ministry Exam",
-        slug: "grade-6",
-        description: "Grade 6 Regional Examination",
-        icon: "📚",
-        order: 2,
-      },
-      {
-        name: "Grade 8 Ministry Exam",
-        slug: "grade-8",
-        description: "Grade 8 National Examination",
-        icon: "📖",
-        order: 3,
-      },
-      {
-        name: "Exit Exam",
-        slug: "exit-exam",
-        description: "University Exit Examination",
-        icon: "🏆",
-        order: 4,
-      },
-      {
-        name: "GAT",
-        slug: "gat",
-        description: "Graduate Admission Test",
-        icon: "🧠",
-        order: 5,
-      },
-      {
-        name: "NGAT",
-        slug: "ngat",
-        description: "National Graduate Admission Test",
-        icon: "💡",
-        order: 6,
-      },
-    ];
-
-    for (const exam of exams) {
-      const result = await pool.query(
-        "INSERT INTO exam_types (name, slug, description, icon, display_order) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-        [exam.name, exam.slug, exam.description, exam.icon, exam.order],
+    // Create users table if not exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        phone VARCHAR(20),
+        grade VARCHAR(50),
+        institution VARCHAR(200),
+        role VARCHAR(20) DEFAULT 'student',
+        is_active BOOLEAN DEFAULT true,
+        last_login TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+    console.log("✅ Users table ready");
 
-      // Add default subjects for each exam
-      const examId = result.rows[0].id;
-      const subjects = getDefaultSubjects(exam.slug, examId);
+    // Create exam_types table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS exam_types (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        description TEXT,
+        icon VARCHAR(10),
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("✅ Exam types table ready");
 
-      for (const subject of subjects) {
-        await pool.query(
-          "INSERT INTO subjects (name, slug, exam_type_id, display_order) VALUES ($1, $2, $3, $4)",
-          [subject.name, subject.slug, examId, subject.order],
-        );
-      }
-    }
+    // Create subjects table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subjects (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        slug VARCHAR(100) NOT NULL,
+        exam_type_id INTEGER REFERENCES exam_types(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        UNIQUE(exam_type_id, slug)
+      );
+    `);
+    console.log("✅ Subjects table ready");
 
-    console.log("Default data seeded successfully");
+    // Create question_papers table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS question_papers (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(300) NOT NULL,
+        year INTEGER NOT NULL,
+        exam_type_id INTEGER REFERENCES exam_types(id) ON DELETE CASCADE,
+        subject_id INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+        file_path VARCHAR(500) NOT NULL,
+        file_size VARCHAR(20),
+        download_count INTEGER DEFAULT 0,
+        uploaded_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("✅ Question papers table ready");
+
+    console.log("✅ Database initialization complete");
+  } catch (error) {
+    console.error("❌ Database initialization error:", error.message);
   }
 }
 
-function getDefaultSubjects(examSlug, examId) {
-  const commonSubjects = [
-    { name: "Mathematics", slug: "mathematics", order: 1 },
-    { name: "English", slug: "english", order: 2 },
-  ];
-
-  switch (examSlug) {
-    case "grade-12-entrance":
-      return [
-        ...commonSubjects,
-        { name: "Physics", slug: "physics", order: 3 },
-        { name: "Chemistry", slug: "chemistry", order: 4 },
-        { name: "Biology", slug: "biology", order: 5 },
-        { name: "History", slug: "history", order: 6 },
-        { name: "Geography", slug: "geography", order: 7 },
-        { name: "Civics", slug: "civics", order: 8 },
-      ];
-    case "grade-8":
-      return [
-        ...commonSubjects,
-        { name: "General Science", slug: "general-science", order: 3 },
-        { name: "Social Studies", slug: "social-studies", order: 4 },
-      ];
-    case "gat":
-      return [
-        { name: "Verbal Reasoning", slug: "verbal-reasoning", order: 1 },
-        {
-          name: "Quantitative Reasoning",
-          slug: "quantitative-reasoning",
-          order: 2,
-        },
-        {
-          name: "Analytical Reasoning",
-          slug: "analytical-reasoning",
-          order: 3,
-        },
-      ];
-    default:
-      return commonSubjects;
-  }
-}
-
-module.exports = { pool, initializeDatabase };
+// Export pool and initializeDatabase
+module.exports = pool;
+module.exports.initializeDatabase = initializeDatabase;

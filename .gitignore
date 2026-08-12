@@ -1,1 +1,51 @@
-backend/node_modules/
+# ===== Node.js =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== Environment Variables =====
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+
+# ===== Database =====
+*.db
+*.sqlite
+database/*.db
+
+# ===== Uploads (PDF files) =====
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# ===== Logs =====
+logs/
+*.log
+npm-debug.log*
+
+# ===== OS Files =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== IDE Files =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== Build =====
+dist/
+build/
+.next/
+out/
+
+# ===== Testing =====
+coverage/
+.nyc_output/
+
+# ===== Misc =====
+*.zip
+*.tar.gz
