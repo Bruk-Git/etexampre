@@ -656,7 +656,6 @@
         <i class="fas fa-heart"></i>
       </p>
     </footer>
-
     <script>
       // ===== AUTHENTICATION CHECK =====
       function checkAuth() {
@@ -664,7 +663,6 @@
         const user = JSON.parse(localStorage.getItem("user") || "{}");
 
         if (!token) {
-          // No token - redirect to login
           window.location.replace("/login");
           return null;
         }
@@ -673,24 +671,19 @@
       }
 
       const auth = checkAuth();
-      if (!auth) {
-        // Already redirected, stop execution
-        throw new Error("Not authenticated");
+      if (auth) {
+        // Display user info
+        const user = auth.user;
+        const fullName = user.fullName || user.full_name || "Student";
+
+        document.getElementById("userName").textContent = fullName;
+        document.getElementById("userFullName").textContent = fullName;
+
+        const firstLetter = fullName.charAt(0).toUpperCase();
+        document.getElementById("userAvatar").textContent = firstLetter;
       }
 
-      // ===== DISPLAY USER INFO =====
-      const user = auth.user;
-      const fullName = user.fullName || user.full_name || "Student";
-
-      // Set user name
-      document.getElementById("userName").textContent = fullName;
-      document.getElementById("userFullName").textContent = fullName;
-
-      // Set avatar (first letter of name)
-      const firstLetter = fullName.charAt(0).toUpperCase();
-      document.getElementById("userAvatar").textContent = firstLetter;
-
-      // ===== VERIFY TOKEN WITH SERVER =====
+      // ===== VERIFY TOKEN =====
       async function verifyToken() {
         try {
           const response = await fetch("/api/auth/verify", {
@@ -700,7 +693,6 @@
           });
 
           if (!response.ok) {
-            // Token invalid/expired - clear and redirect
             handleLogout();
             return false;
           }
@@ -714,13 +706,11 @@
 
       // ===== LOAD EXAMS =====
       async function loadExams() {
-        // First verify token
         const isValid = await verifyToken();
         if (!isValid) return;
 
         const grid = document.getElementById("examGrid");
 
-        // Sample exams (replace with API call later)
         const exams = [
           {
             name: "Grade 12 Entrance",
@@ -728,6 +718,7 @@
             desc: "University entrance exam papers",
             slug: "grade-12-entrance",
             papers: 250,
+            route: "streams",
           },
           {
             name: "Grade 8 Ministry",
@@ -735,6 +726,7 @@
             desc: "Grade 8 national exam papers",
             slug: "grade-8",
             papers: 200,
+            route: "regions",
           },
           {
             name: "Grade 6 Ministry",
@@ -742,6 +734,7 @@
             desc: "Grade 6 regional exam papers",
             slug: "grade-6",
             papers: 150,
+            route: "regions",
           },
           {
             name: "Exit Exam",
@@ -749,6 +742,7 @@
             desc: "University exit examination",
             slug: "exit-exam",
             papers: 180,
+            route: "streams",
           },
           {
             name: "GAT",
@@ -756,6 +750,7 @@
             desc: "Graduate Admission Test",
             slug: "gat",
             papers: 120,
+            route: "streams",
           },
           {
             name: "NGAT",
@@ -763,13 +758,14 @@
             desc: "National Graduate Admission Test",
             slug: "ngat",
             papers: 100,
+            route: "streams",
           },
         ];
 
         grid.innerHTML = exams
           .map(
             (exam) => `
-        <div class="exam-card" onclick="window.location.href='/exams?type=${exam.slug}'">
+        <div class="exam-card" onclick="window.location.href='/${exam.route}.html?type=${exam.slug}'">
           <span class="exam-icon">${exam.icon}</span>
           <h3>${exam.name}</h3>
           <p>${exam.desc}</p>
@@ -782,14 +778,11 @@
           )
           .join("");
       }
-
-      // ===== LOGOUT FUNCTION =====
+      // ===== LOGOUT =====
       function handleLogout() {
-        // Clear all stored data
         localStorage.clear();
         sessionStorage.clear();
 
-        // Clear cookies
         document.cookie.split(";").forEach((c) => {
           document.cookie = c
             .replace(/^ +/, "")
@@ -799,13 +792,11 @@
             );
         });
 
-        // Redirect to login (using replace to prevent back button)
         window.location.replace("/login");
       }
 
-      // ===== PREVENT BACK BUTTON AFTER LOGOUT =====
+      // ===== PREVENT BACK BUTTON =====
       window.addEventListener("pageshow", function (event) {
-        // If page was loaded from bfcache (back/forward cache)
         if (event.persisted) {
           const token = localStorage.getItem("token");
           if (!token) {

@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Select Region - Ethiopian Exam Prep</title>
+    <link rel="icon" href="images/logo.jpg" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f0f4f8;
+        color: #2c3e50;
+        line-height: 1.6;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ===== NAVIGATION BAR (Same as Dashboard) ===== */
+      .header {
+        background: linear-gradient(135deg, #0a2540, #003b6f);
+        padding: 12px 30px;
+        position: fixed;
+        width: 100%;
+        top: 0;
+        z-index: 1000;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        animation: slideDown 0.5s ease-out;
+      }
+      @keyframes slideDown {
+        from {
+          transform: translateY(-100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+      .nav {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .logo-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+      }
+      .logo-image {
+        height: 45px;
+        width: 45px;
+        border-radius: 50%;
+        object-fit: cover;
+        transition: all 0.3s ease;
+        border: 2px solid rgba(77, 166, 255, 0.3);
+      }
+      .logo-image:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px rgba(77, 166, 255, 0.3);
+        border-color: #4da6ff;
+      }
+      .logo {
+        color: white;
+        font-size: 20px;
+        font-weight: 700;
+        text-decoration: none;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+      }
+      .logo:hover {
+        color: #4da6ff;
+      }
+      .nav-right {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+      .user-badge {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 8px 16px;
+        border-radius: 25px;
+      }
+      .user-avatar {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4da6ff, #66ccff);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 0.9rem;
+      }
+      .user-name {
+        color: white;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+      .logout-btn {
+        background: rgba(255, 82, 82, 0.9);
+        color: white;
+        border: none;
+        padding: 10px 22px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .logout-btn:hover {
+        background: #dc2626;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
+      }
+
+      /* ===== MAIN CONTENT ===== */
+      .main-content {
+        flex: 1;
+        margin-top: 70px;
+        padding: 40px 20px;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 30px;
+        color: #5a6c7d;
+        font-size: 0.9rem;
+        flex-wrap: wrap;
+      }
+      .breadcrumb a {
+        color: #4da6ff;
+        text-decoration: none;
+      }
+      .breadcrumb a:hover {
+        text-decoration: underline;
+      }
+      .breadcrumb i {
+        font-size: 0.7rem;
+        color: #9ca3af;
+      }
+      .page-title {
+        text-align: center;
+        margin-bottom: 40px;
+      }
+      .page-title h1 {
+        font-size: 2.2rem;
+        color: #003b6f;
+        margin-bottom: 10px;
+      }
+      .page-title p {
+        color: #5a6c7d;
+        font-size: 1.05rem;
+      }
+
+      .region-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 20px;
+      }
+      .region-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+        border: 2px solid rgba(77, 166, 255, 0.1);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        position: relative;
+        overflow: hidden;
+      }
+      .region-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #4da6ff, #66ccff);
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .region-card:hover::before {
+        opacity: 1;
+      }
+      .region-card:hover {
+        transform: translateY(-6px);
+        border-color: #4da6ff;
+        box-shadow: 0 15px 35px rgba(77, 166, 255, 0.15);
+      }
+      .region-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 12px;
+        background: #e6f0ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        color: #4da6ff;
+        flex-shrink: 0;
+      }
+      .region-info {
+        flex: 1;
+      }
+      .region-info h3 {
+        font-size: 0.95rem;
+        color: #003b6f;
+        margin-bottom: 3px;
+        font-weight: 700;
+      }
+      .region-info span {
+        font-size: 0.8rem;
+        color: #5a6c7d;
+      }
+      .region-arrow {
+        color: #4da6ff;
+        font-size: 0.9rem;
+        transition: transform 0.3s;
+      }
+      .region-card:hover .region-arrow {
+        transform: translateX(5px);
+      }
+
+      .loading {
+        text-align: center;
+        padding: 60px;
+        color: #5a6c7d;
+        grid-column: 1 / -1;
+      }
+      .loading i {
+        font-size: 2.5rem;
+        color: #4da6ff;
+        margin-bottom: 15px;
+        display: block;
+      }
+
+      /* ===== FOOTER ===== */
+      .footer {
+        background: linear-gradient(135deg, #0a2540, #003b6f);
+        color: rgba(255, 255, 255, 0.7);
+        text-align: center;
+        padding: 25px;
+      }
+      .footer a {
+        color: #4da6ff;
+        text-decoration: none;
+      }
+
+      /* ===== RESPONSIVE ===== */
+      @media (max-width: 768px) {
+        .header {
+          padding: 10px 15px;
+        }
+        .logo {
+          font-size: 16px;
+        }
+        .logo-image {
+          height: 35px;
+          width: 35px;
+        }
+        .user-name {
+          display: none;
+        }
+        .user-badge {
+          padding: 5px 10px;
+        }
+        .user-avatar {
+          width: 30px;
+          height: 30px;
+          font-size: 0.8rem;
+        }
+        .logout-btn {
+          padding: 8px 15px;
+          font-size: 0.8rem;
+        }
+        .region-grid {
+          grid-template-columns: 1fr;
+        }
+        .page-title h1 {
+          font-size: 1.6rem;
+        }
+      }
+      @media (max-width: 480px) {
+        .logo {
+          font-size: 14px;
+        }
+        .region-card {
+          padding: 18px;
+        }
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #e6f0ff;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #4da6ff, #66ccff);
+        border-radius: 4px;
+      }
+      ::selection {
+        background: #4da6ff;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <nav class="nav">
+        <a href="/dashboard" class="logo-container">
+          <img src="images/logo.jpg" alt="Logo" class="logo-image" />
+          <span class="logo">Ethiopian Exam Prep</span>
+        </a>
+        <div class="nav-right">
+          <div class="user-badge">
+            <div class="user-avatar" id="userAvatar">S</div>
+            <span class="user-name" id="userName">Student</span>
+          </div>
+          <button class="logout-btn" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="main-content">
+      <div class="container">
+        <div class="breadcrumb">
+          <a href="/dashboard">Dashboard</a>
+          <i class="fas fa-chevron-right"></i>
+          <span id="breadcrumbExam">Select Region</span>
+        </div>
+        <div class="page-title">
+          <h1 id="pageTitle">Choose Your Region</h1>
+          <p id="pageSubtitle">
+            Select your region to view available exam papers
+          </p>
+        </div>
+        <div class="region-grid" id="regionGrid">
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin"></i>Loading regions...
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p>© 2026 <a href="/">Ethiopian Exam Prep</a> · Free for all students</p>
+    </footer>
+
+    <script>
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!token) {
+        window.location.replace("/login");
+      }
+      const fullName = user.fullName || user.full_name || "Student";
+      document.getElementById("userName").textContent = fullName;
+      document.getElementById("userAvatar").textContent = fullName
+        .charAt(0)
+        .toUpperCase();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const examSlug = urlParams.get("exam") || urlParams.get("type") || "";
+
+      // Set page title based on exam
+      if (examSlug === "grade-8") {
+        document.getElementById("pageTitle").textContent = "Choose Your Region";
+        document.getElementById("pageSubtitle").textContent =
+          "Grade 8 Ministry Exam - Select your region";
+        document.getElementById("breadcrumbExam").textContent =
+          "Grade 8 - Select Region";
+      } else if (examSlug === "grade-6") {
+        document.getElementById("pageTitle").textContent = "Choose Your Region";
+        document.getElementById("pageSubtitle").textContent =
+          "Grade 6 Ministry Exam - Select your region";
+        document.getElementById("breadcrumbExam").textContent =
+          "Grade 6 - Select Region";
+      }
+
+      // Regions data
+      const regionsByExam = {
+        "grade-8": [
+          "Addis Ababa City Administration",
+          "Afar Region",
+          "Amhara Region",
+          "Benishangul-Gumuz Region",
+          "Central Ethiopia Region",
+          "Dire Dawa City Administration",
+          "Gambela Region",
+          "Harari Region",
+          "Oromia Region",
+          "Sidama Region",
+          "Somali Region",
+          "South Ethiopia Region",
+          "South West Ethiopia Peoples' Region",
+          "Tigray Region",
+        ],
+        "grade-6": [
+          "Afar Region",
+          "Amhara Region",
+          "Benishangul-Gumuz Region",
+          "Central Ethiopia Region",
+          "Dire Dawa City Administration",
+          "Gambella Region",
+          "Harari Region",
+          "Oromia Region",
+          "Sidama Region",
+          "Somali Region",
+          "South Ethiopia Region",
+          "South West Ethiopia Region",
+          "Tigray Region",
+        ],
+      };
+
+      function loadRegions() {
+        const grid = document.getElementById("regionGrid");
+        const regions = regionsByExam[examSlug] || [];
+
+        if (regions.length === 0) {
+          grid.innerHTML =
+            '<div class="loading"><i class="fas fa-exclamation-circle"></i>No regions found for this exam.</div>';
+          return;
+        }
+
+        const regionIcons = {
+          "Addis Ababa": "🏙️",
+          Afar: "🏜️",
+          Amhara: "🏔️",
+          Benishangul: "🌳",
+          "Central Ethiopia": "🌍",
+          "Dire Dawa": "🏙️",
+          Gambela: "🌊",
+          Gambella: "🌊",
+          Harari: "🕌",
+          Oromia: "🌾",
+          Sidama: "☕",
+          Somali: "🐪",
+          "South Ethiopia": "🌍",
+          "South West Ethiopia": "🌿",
+          Tigray: "⛰️",
+        };
+
+        function getIcon(regionName) {
+          for (const [key, icon] of Object.entries(regionIcons)) {
+            if (regionName.includes(key)) return icon;
+          }
+          return "📍";
+        }
+
+        // Create slug from region name
+        function createSlug(name) {
+          return name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "");
+        }
+
+        grid.innerHTML = regions
+          .map((region) => {
+            const slug = createSlug(region);
+            const icon = getIcon(region);
+            return `
+          <a href="/subjects.html?exam=${examSlug}&region=${slug}" class="region-card">
+            <span class="region-icon">${icon}</span>
+            <div class="region-info">
+              <h3>${region}</h3>
+              <span>Click to view subjects</span>
+            </div>
+            <span class="region-arrow"><i class="fas fa-chevron-right"></i></span>
+          </a>
+        `;
+          })
+          .join("");
+      }
+
+      function logout() {
+        localStorage.clear();
+        sessionStorage.clear();
+        document.cookie.split(";").forEach((c) => {
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(
+              /=.*/,
+              "=;expires=" + new Date().toUTCString() + ";path=/",
+            );
+        });
+        window.location.replace("/login");
+      }
+      window.addEventListener("pageshow", function (e) {
+        if (e.persisted && !localStorage.getItem("token")) {
+          window.location.replace("/login");
+        }
+      });
+
+      loadRegions();
+    </script>
+  </body>
+</html>

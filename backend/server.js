@@ -10,7 +10,6 @@ const jwt = require("jsonwebtoken");
 // Import pool from database.js
 const pool = require("./database");
 
-// Create Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -23,8 +22,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 // ==========================================
-// REGISTER ROUTE
+// API ROUTES - Must be BEFORE frontend routes
 // ==========================================
+
+// REGISTER
 app.post("/api/auth/register", async (req, res) => {
   console.log("📝 Registration attempt:", req.body.email);
 
@@ -39,31 +40,22 @@ app.post("/api/auth/register", async (req, res) => {
       confirmPassword,
     } = req.body;
 
-    // Validate required fields
     if (!fullName || !email || !password || !confirmPassword) {
       return res
         .status(400)
         .json({ error: "All required fields must be filled." });
     }
 
-    // Validate passwords match
     if (password !== confirmPassword) {
       return res.status(400).json({ error: "Passwords do not match." });
     }
 
-    // Validate password length
     if (password.length < 8) {
       return res
         .status(400)
         .json({ error: "Password must be at least 8 characters." });
     }
 
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ error: "Invalid email format." });
-    }
-
-    // Check if email already exists
     const existingUser = await pool.query(
       "SELECT id FROM users WHERE email = $1",
       [email.toLowerCase().trim()],
@@ -72,13 +64,11 @@ app.post("/api/auth/register", async (req, res) => {
     if (existingUser.rows.length > 0) {
       return res
         .status(409)
-        .json({ error: "This email is already registered. Please login." });
+        .json({ error: "This email is already registered." });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
     const result = await pool.query(
       `INSERT INTO users (full_name, email, phone, grade, institution, password) 
        VALUES ($1, $2, $3, $4, $5, $6) 
@@ -95,7 +85,6 @@ app.post("/api/auth/register", async (req, res) => {
 
     console.log("✅ User created:", result.rows[0].email);
 
-    // Generate JWT token
     const token = jwt.sign(
       {
         id: result.rows[0].id,
@@ -106,7 +95,6 @@ app.post("/api/auth/register", async (req, res) => {
       { expiresIn: "7d" },
     );
 
-    // Send success response
     res.status(201).json({
       message: "Registration successful!",
       token: token,
@@ -114,37 +102,11 @@ app.post("/api/auth/register", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Registration error:", error.message);
-
-    // Check for specific errors
-    if (error.code === "23505") {
-      return res
-        .status(409)
-        .json({ error: "This email is already registered." });
-    }
-    if (error.code === "42P01") {
-      return res
-        .status(500)
-        .json({
-          error: "Database table not found. Please run schema.sql in pgAdmin.",
-        });
-    }
-    if (error.code === "28P01") {
-      return res
-        .status(500)
-        .json({
-          error: "Database connection failed. Check .env file credentials.",
-        });
-    }
-
-    res
-      .status(500)
-      .json({ error: "Registration failed. Server error: " + error.message });
+    res.status(500).json({ error: "Registration failed: " + error.message });
   }
 });
 
-// ==========================================
-// LOGIN ROUTE
-// ==========================================
+// LOGIN
 app.post("/api/auth/login", async (req, res) => {
   console.log("🔐 Login attempt:", req.body.email);
 
@@ -157,10 +119,10 @@ app.post("/api/auth/login", async (req, res) => {
         .json({ error: "Email and password are required." });
     }
 
-    // Find user
-    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email.toLowerCase().trim(),
-    ]);
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email = $1 AND is_active = true",
+      [email.toLowerCase().trim()],
+    );
 
     if (result.rows.length === 0) {
       return res
@@ -169,17 +131,12 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const user = result.rows[0];
-
-    // Check password
     const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
       return res.status(401).json({ error: "Incorrect password." });
     }
 
-    console.log("✅ Login successful:", user.email);
-
-    // Generate token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "defaultSecretKey123",
@@ -201,13 +158,11 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Login error:", error.message);
-    res.status(500).json({ error: "Login failed. Server error." });
+    res.status(500).json({ error: "Login failed." });
   }
 });
 
-// ==========================================
-// VERIFY TOKEN ROUTE
-// ==========================================
+// VERIFY TOKEN
 app.get("/api/auth/verify", async (req, res) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -227,9 +182,122 @@ app.get("/api/auth/verify", async (req, res) => {
   }
 });
 
+// GET ALL EXAMS
+app.get("/api/exams", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT e.*, COUNT(DISTINCT qp.id) as paper_count
+      FROM exam_types e
+      LEFT JOIN question_papers qp ON qp.exam_type_id = e.id
+      GROUP BY e.id
+      ORDER BY e.display_order ASC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching exams:", error.message);
+    res.status(500).json({ error: "Failed to load exams" });
+  }
+});
+
+// GET STREAMS FOR AN EXAM
+app.get("/api/exams/:examSlug/streams", async (req, res) => {
+  try {
+    const { examSlug } = req.params;
+    console.log("🔍 Fetching streams for:", examSlug);
+
+    const streams = await pool.query(
+      `
+      SELECT es.*, 
+        (SELECT COUNT(*) FROM subjects s WHERE s.stream_id = es.id) as subject_count
+      FROM exam_streams es
+      JOIN exam_types et ON es.exam_type_id = et.id
+      WHERE et.slug = $1
+      ORDER BY es.display_order ASC
+    `,
+      [examSlug],
+    );
+
+    console.log("✅ Streams found:", streams.rows.length);
+
+    res.json({
+      hasStreams: streams.rows.length > 0,
+      streams: streams.rows,
+    });
+  } catch (error) {
+    console.error("Error fetching streams:", error.message);
+    res.status(500).json({ error: "Failed to load streams" });
+  }
+});
+
+// GET SUBJECTS
+app.get("/api/exams/:examSlug/subjects", async (req, res) => {
+  try {
+    const { examSlug } = req.params;
+    const { streamSlug } = req.query;
+
+    console.log("🔍 Fetching subjects for:", examSlug, "stream:", streamSlug);
+
+    let query = `
+      SELECT s.*, 
+        COUNT(DISTINCT qp.id) as paper_count,
+        MIN(qp.year) as oldest_year,
+        MAX(qp.year) as latest_year
+      FROM subjects s
+      JOIN exam_types et ON s.exam_type_id = et.id
+      LEFT JOIN question_papers qp ON qp.subject_id = s.id
+      WHERE et.slug = $1
+    `;
+
+    const params = [examSlug];
+
+    if (streamSlug && streamSlug !== "") {
+      query += ` AND s.stream_id = (SELECT id FROM exam_streams WHERE slug = $2)`;
+      params.push(streamSlug);
+    } else {
+      query += ` AND s.stream_id IS NULL`;
+    }
+
+    query += ` GROUP BY s.id ORDER BY s.display_order ASC`;
+
+    const subjects = await pool.query(query, params);
+
+    console.log("✅ Subjects found:", subjects.rows.length);
+
+    res.json(subjects.rows);
+  } catch (error) {
+    console.error("Error fetching subjects:", error.message);
+    res.status(500).json({ error: "Failed to load subjects" });
+  }
+});
+
+// GET PAPERS FOR A SUBJECT
+app.get("/api/papers/:subjectSlug", async (req, res) => {
+  try {
+    const { subjectSlug } = req.params;
+
+    const papers = await pool.query(
+      `
+      SELECT qp.*, s.name as subject_name, et.name as exam_name
+      FROM question_papers qp
+      JOIN subjects s ON qp.subject_id = s.id
+      JOIN exam_types et ON qp.exam_type_id = et.id
+      WHERE s.slug = $1
+      ORDER BY qp.year DESC
+    `,
+      [subjectSlug],
+    );
+
+    res.json(papers.rows);
+  } catch (error) {
+    console.error("Error fetching papers:", error.message);
+    res.status(500).json({ error: "Failed to load papers" });
+  }
+});
+
 // ==========================================
-// FRONTEND ROUTES
+// FRONTEND ROUTES - Must be AFTER API routes
 // ==========================================
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "index.html"));
 });
@@ -246,11 +314,45 @@ app.get("/dashboard", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "dashboard.html"));
 });
 
+app.get("/streams.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "streams.html"));
+});
+
+app.get("/streams", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "streams.html"));
+});
+
+app.get("/subjects.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "subjects.html"));
+});
+
+app.get("/subjects", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "subjects.html"));
+});
+
+app.get("/papers.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "papers.html"));
+});
+
+app.get("/papers", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "papers.html"));
+});
+app.get("/regions.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "regions.html"));
+});
+
+app.get("/regions", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "regions.html"));
+});
 // ==========================================
 // START SERVER
 // ==========================================
 app.listen(PORT, () => {
   console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log(`📝 Register: http://localhost:${PORT}/register`);
-  console.log(`🔐 Login: http://localhost:${PORT}/login\n`);
+  console.log(`🔐 Login: http://localhost:${PORT}/login`);
+  console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
+  console.log(`📚 Streams: http://localhost:${PORT}/streams.html`);
+  console.log(`📖 Subjects: http://localhost:${PORT}/subjects.html`);
+  console.log(`📄 Papers: http://localhost:${PORT}/papers.html\n`);
 });
