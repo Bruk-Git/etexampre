@@ -742,7 +742,7 @@
             desc: "University exit examination",
             slug: "exit-exam",
             papers: 180,
-            route: "streams",
+            route: "subjects",
           },
           {
             name: "GAT",
@@ -750,7 +750,7 @@
             desc: "Graduate Admission Test",
             slug: "gat",
             papers: 120,
-            route: "streams",
+            route: "subjects",
           },
           {
             name: "NGAT",
@@ -758,14 +758,14 @@
             desc: "National Graduate Admission Test",
             slug: "ngat",
             papers: 100,
-            route: "streams",
+            route: "subjects",
           },
         ];
 
         grid.innerHTML = exams
           .map(
             (exam) => `
-        <div class="exam-card" onclick="window.location.href='/${exam.route}.html?type=${exam.slug}'">
+        <div class="exam-card" onclick="window.location.href='/${exam.route}.html?exam=${exam.slug}'">
           <span class="exam-icon">${exam.icon}</span>
           <h3>${exam.name}</h3>
           <p>${exam.desc}</p>

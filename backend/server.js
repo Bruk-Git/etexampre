@@ -6,6 +6,7 @@ const cors = require("cors");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const multer = require("multer");
 
 // Import pool from database.js
 const pool = require("./database");
@@ -13,7 +14,35 @@ const pool = require("./database");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// ==========================================
+// MULTER CONFIGURATION
+// ==========================================
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "uploads"));
+  },
+  filename: (req, file, cb) => {
+    const uniqueName =
+      Date.now() + "-" + Math.round(Math.random() * 1e9) + ".pdf";
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF files are allowed"));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+});
+
+// ==========================================
+// MIDDLEWARE
+// ==========================================
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -21,8 +50,11 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from frontend
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // ==========================================
-// API ROUTES - Must be BEFORE frontend routes
+// AUTHENTICATION ROUTES
 // ==========================================
 
 // REGISTER
@@ -182,6 +214,10 @@ app.get("/api/auth/verify", async (req, res) => {
   }
 });
 
+// ==========================================
+// EXAM ROUTES
+// ==========================================
+
 // GET ALL EXAMS
 app.get("/api/exams", async (req, res) => {
   try {
@@ -203,7 +239,6 @@ app.get("/api/exams", async (req, res) => {
 app.get("/api/exams/:examSlug/streams", async (req, res) => {
   try {
     const { examSlug } = req.params;
-    console.log("🔍 Fetching streams for:", examSlug);
 
     const streams = await pool.query(
       `
@@ -217,8 +252,6 @@ app.get("/api/exams/:examSlug/streams", async (req, res) => {
       [examSlug],
     );
 
-    console.log("✅ Streams found:", streams.rows.length);
-
     res.json({
       hasStreams: streams.rows.length > 0,
       streams: streams.rows,
@@ -230,42 +263,33 @@ app.get("/api/exams/:examSlug/streams", async (req, res) => {
 });
 
 // GET SUBJECTS
-app.get("/api/exams/:examSlug/subjects", async (req, res) => {
+// GET SUBJECTS FOR REGION
+app.get("/api/exams/:examSlug/subjects-by-region", async (req, res) => {
   try {
     const { examSlug } = req.params;
-    const { streamSlug } = req.query;
+    const { regionSlug } = req.query;
 
-    console.log("🔍 Fetching subjects for:", examSlug, "stream:", streamSlug);
-
-    let query = `
-      SELECT s.*, 
+    const subjects = await pool.query(
+      `
+      SELECT DISTINCT ON (s.id)
+        s.id, s.name, s.slug, s.exam_type_id, s.region_id, s.display_order,
         COUNT(DISTINCT qp.id) as paper_count,
         MIN(qp.year) as oldest_year,
         MAX(qp.year) as latest_year
       FROM subjects s
       JOIN exam_types et ON s.exam_type_id = et.id
+      JOIN regions r ON s.region_id = r.id
       LEFT JOIN question_papers qp ON qp.subject_id = s.id
-      WHERE et.slug = $1
-    `;
-
-    const params = [examSlug];
-
-    if (streamSlug && streamSlug !== "") {
-      query += ` AND s.stream_id = (SELECT id FROM exam_streams WHERE slug = $2)`;
-      params.push(streamSlug);
-    } else {
-      query += ` AND s.stream_id IS NULL`;
-    }
-
-    query += ` GROUP BY s.id ORDER BY s.display_order ASC`;
-
-    const subjects = await pool.query(query, params);
-
-    console.log("✅ Subjects found:", subjects.rows.length);
+      WHERE et.slug = $1 AND r.slug = $2
+      GROUP BY s.id, s.name, s.slug, s.exam_type_id, s.region_id, s.display_order
+      ORDER BY s.id, s.display_order ASC
+    `,
+      [examSlug, regionSlug],
+    );
 
     res.json(subjects.rows);
   } catch (error) {
-    console.error("Error fetching subjects:", error.message);
+    console.error("Error fetching subjects by region:", error.message);
     res.status(500).json({ error: "Failed to load subjects" });
   }
 });
@@ -293,9 +317,236 @@ app.get("/api/papers/:subjectSlug", async (req, res) => {
     res.status(500).json({ error: "Failed to load papers" });
   }
 });
+// GET REGIONS FOR AN EXAM
+app.get("/api/exams/:examSlug/regions", async (req, res) => {
+  try {
+    const { examSlug } = req.params;
+
+    const regions = await pool.query(
+      `
+      SELECT r.*, 
+        (SELECT COUNT(*) FROM subjects s WHERE s.region_id = r.id) as subject_count
+      FROM regions r
+      JOIN exam_types et ON r.exam_type_id = et.id
+      WHERE et.slug = $1
+      ORDER BY r.display_order ASC
+    `,
+      [examSlug],
+    );
+
+    res.json({
+      hasRegions: regions.rows.length > 0,
+      regions: regions.rows,
+    });
+  } catch (error) {
+    console.error("Error fetching regions:", error.message);
+    res.status(500).json({ error: "Failed to load regions" });
+  }
+});
+
+// GET SUBJECTS FOR REGION
+app.get("/api/exams/:examSlug/subjects-by-region", async (req, res) => {
+  try {
+    const { examSlug } = req.params;
+    const { regionSlug } = req.query;
+
+    const subjects = await pool.query(
+      `
+      SELECT s.*, 
+        COUNT(DISTINCT qp.id) as paper_count,
+        MIN(qp.year) as oldest_year,
+        MAX(qp.year) as latest_year
+      FROM subjects s
+      JOIN exam_types et ON s.exam_type_id = et.id
+      JOIN regions r ON s.region_id = r.id
+      LEFT JOIN question_papers qp ON qp.subject_id = s.id
+      WHERE et.slug = $1 AND r.slug = $2
+      GROUP BY s.id
+      ORDER BY s.display_order ASC
+    `,
+      [examSlug, regionSlug],
+    );
+
+    res.json(subjects.rows);
+  } catch (error) {
+    console.error("Error fetching subjects by region:", error.message);
+    res.status(500).json({ error: "Failed to load subjects" });
+  }
+});
+// TRACK DOWNLOAD
+app.post("/api/papers/:id/download", async (req, res) => {
+  try {
+    await pool.query(
+      "UPDATE question_papers SET download_count = download_count + 1 WHERE id = $1",
+      [req.params.id],
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error tracking download:", error.message);
+    res.status(500).json({ error: "Failed to track download" });
+  }
+});
 
 // ==========================================
-// FRONTEND ROUTES - Must be AFTER API routes
+// ADMIN ROUTES
+// ==========================================
+
+// UPLOAD PAPER
+// UPLOAD PAPER (Updated with region support)
+app.post("/api/admin/upload", upload.single("file"), async (req, res) => {
+  try {
+    const { title, year, examTypeSlug, subjectSlug, streamSlug, regionSlug } =
+      req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded." });
+    }
+
+    // Find exam type
+    const examResult = await pool.query(
+      "SELECT id FROM exam_types WHERE slug = $1",
+      [examTypeSlug],
+    );
+    if (examResult.rows.length === 0) {
+      return res.status(404).json({ error: "Exam type not found" });
+    }
+    const examId = examResult.rows[0].id;
+
+    // Find subject
+    let subjectResult;
+    if (regionSlug) {
+      // Find subject by region
+      subjectResult = await pool.query(
+        `
+        SELECT s.id FROM subjects s
+        JOIN regions r ON s.region_id = r.id
+        WHERE s.slug = $1 AND s.exam_type_id = $2 AND r.slug = $3
+      `,
+        [subjectSlug, examId, regionSlug],
+      );
+    } else {
+      // Find regular subject
+      subjectResult = await pool.query(
+        "SELECT id FROM subjects WHERE slug = $1 AND exam_type_id = $2",
+        [subjectSlug, examId],
+      );
+    }
+
+    if (subjectResult.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Subject not found for this exam/region" });
+    }
+    const subjectId = subjectResult.rows[0].id;
+
+    // Find stream if provided
+    let streamId = null;
+    if (streamSlug) {
+      const streamResult = await pool.query(
+        "SELECT id FROM exam_streams WHERE slug = $1",
+        [streamSlug],
+      );
+      if (streamResult.rows.length > 0) streamId = streamResult.rows[0].id;
+    }
+
+    // Find region if provided
+    let regionId = null;
+    if (regionSlug) {
+      const regionResult = await pool.query(
+        "SELECT id FROM regions WHERE slug = $1 AND exam_type_id = $2",
+        [regionSlug, examId],
+      );
+      if (regionResult.rows.length > 0) regionId = regionResult.rows[0].id;
+    }
+
+    // Insert paper
+    const result = await pool.query(
+      `INSERT INTO question_papers (title, year, exam_type_id, subject_id, stream_id, region_id, file_path, file_size)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, title`,
+      [
+        title || `${subjectSlug} ${year}`,
+        parseInt(year),
+        examId,
+        subjectId,
+        streamId,
+        regionId,
+        "/uploads/" + req.file.filename,
+        (req.file.size / (1024 * 1024)).toFixed(1) + " MB",
+      ],
+    );
+
+    res.json({
+      message: "Paper uploaded successfully!",
+      paper: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Upload error:", error.message);
+    res.status(500).json({ error: "Upload failed: " + error.message });
+  }
+});
+
+// GET ALL PAPERS (ADMIN)
+app.get("/api/admin/papers", async (req, res) => {
+  try {
+    const papers = await pool.query(`
+      SELECT qp.*, s.name as subject_name, et.name as exam_name
+      FROM question_papers qp
+      JOIN subjects s ON qp.subject_id = s.id
+      JOIN exam_types et ON qp.exam_type_id = et.id
+      ORDER BY qp.created_at DESC
+    `);
+    res.json(papers.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE PAPER
+app.delete("/api/admin/papers/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM question_papers WHERE id = $1", [
+      req.params.id,
+    ]);
+    res.json({ message: "Paper deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET ALL USERS
+app.get("/api/admin/users", async (req, res) => {
+  try {
+    const users = await pool.query(`
+      SELECT id, full_name, email, grade, institution, role, is_active, created_at
+      FROM users ORDER BY created_at DESC
+    `);
+    res.json(users.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET STATS
+app.get("/api/admin/stats", async (req, res) => {
+  try {
+    const papers = await pool.query(
+      "SELECT COUNT(*) as count, COALESCE(SUM(download_count), 0) as downloads FROM question_papers",
+    );
+    const users = await pool.query("SELECT COUNT(*) as count FROM users");
+
+    res.json({
+      papers: parseInt(papers.rows[0].count),
+      downloads: parseInt(papers.rows[0].downloads),
+      users: parseInt(users.rows[0].count),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// FRONTEND ROUTES
 // ==========================================
 
 app.get("/", (req, res) => {
@@ -337,6 +588,7 @@ app.get("/papers.html", (req, res) => {
 app.get("/papers", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "papers.html"));
 });
+
 app.get("/regions.html", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "regions.html"));
 });
@@ -344,6 +596,19 @@ app.get("/regions.html", (req, res) => {
 app.get("/regions", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "regions.html"));
 });
+
+app.get("/admin", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "admin.html"));
+});
+
+// ==========================================
+// ERROR HANDLING
+// ==========================================
+app.use((err, req, res, next) => {
+  console.error("Server error:", err.message);
+  res.status(500).json({ error: "Server error: " + err.message });
+});
+
 // ==========================================
 // START SERVER
 // ==========================================
@@ -352,7 +617,9 @@ app.listen(PORT, () => {
   console.log(`📝 Register: http://localhost:${PORT}/register`);
   console.log(`🔐 Login: http://localhost:${PORT}/login`);
   console.log(`📊 Dashboard: http://localhost:${PORT}/dashboard`);
+  console.log(`🛠️ Admin: http://localhost:${PORT}/admin`);
   console.log(`📚 Streams: http://localhost:${PORT}/streams.html`);
   console.log(`📖 Subjects: http://localhost:${PORT}/subjects.html`);
-  console.log(`📄 Papers: http://localhost:${PORT}/papers.html\n`);
+  console.log(`📄 Papers: http://localhost:${PORT}/papers.html`);
+  console.log(`🗺️ Regions: http://localhost:${PORT}/regions.html\n`);
 });

@@ -378,60 +378,132 @@
         .toUpperCase();
 
       const urlParams = new URLSearchParams(window.location.search);
-      const examSlug = urlParams.get("exam") || "";
+      const examSlug = urlParams.get("exam") || urlParams.get("type") || "";
       const streamSlug = urlParams.get("stream") || "";
+      const regionSlug = urlParams.get("region") || "";
 
+      // Set back link
       if (streamSlug) {
         document.getElementById("backToStreams").href =
           `/streams.html?type=${examSlug}`;
+        document.getElementById("backToStreams").textContent = "Streams";
+      } else if (regionSlug) {
+        document.getElementById("backToStreams").href =
+          `/regions.html?exam=${examSlug}`;
+        document.getElementById("backToStreams").textContent = "Regions";
       } else {
         document.getElementById("backToStreams").href = "/dashboard";
+        document.getElementById("backToStreams").textContent = "Dashboard";
+      }
+
+      // Update page title for region exams
+      if (regionSlug) {
+        const regionName = regionSlug
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+        document.querySelector(".page-title h1").textContent = "Select Subject";
+        document.querySelector(".page-title p").textContent =
+          `${regionName} - Choose a subject to view papers`;
+      }
+
+      // ===== GET ICON FUNCTION =====
+      function getIcon(slug) {
+        // Check by prefix first (for region subjects like math-addis-ababa)
+        if (slug.startsWith("math")) return "📐";
+        if (slug.startsWith("eng")) return "📖";
+        if (slug.startsWith("sci")) return "🔬";
+        if (slug.startsWith("soc")) return "👥";
+
+        // Check contains patterns
+        if (slug.includes("physics")) return "⚛️";
+        if (slug.includes("chemistry")) return "🧪";
+        if (slug.includes("biology")) return "🧬";
+        if (slug.includes("history")) return "🏛️";
+        if (slug.includes("geography")) return "🌍";
+        if (slug.includes("civics")) return "⚖️";
+        if (slug.includes("verbal")) return "💬";
+        if (slug.includes("quantitative")) return "🔢";
+        if (slug.includes("analytical")) return "🧩";
+        if (slug.includes("general")) return "🔬";
+        if (slug.includes("social")) return "👥";
+
+        return "📝";
       }
 
       async function loadSubjects() {
         const grid = document.getElementById("subjectGrid");
+
         try {
-          let url = `/api/exams/${examSlug}/subjects`;
-          if (streamSlug) {
-            url += `?streamSlug=${streamSlug}`;
+          let url;
+
+          if (regionSlug) {
+            // Load subjects by region (Grade 6/8)
+            url = `/api/exams/${examSlug}/subjects-by-region?regionSlug=${regionSlug}`;
+          } else {
+            // Load regular subjects
+            url = `/api/exams/${examSlug}/subjects`;
+            if (streamSlug) {
+              url += `?streamSlug=${streamSlug}`;
+            }
           }
+
+          console.log("Fetching subjects from:", url);
+
           const response = await fetch(url);
           const subjects = await response.json();
+
+          console.log("Subjects loaded:", subjects);
+
           if (subjects.length === 0) {
             grid.innerHTML =
-              '<div class="loading"><i class="fas fa-folder-open"></i>No subjects available yet.</div>';
+              '<div class="loading"><i class="fas fa-folder-open"></i>No subjects available yet.<br>Check back later!</div>';
             return;
           }
-          const iconMap = {
-            mathematics: "📐",
-            "mathematics-social": "📐",
-            english: "📖",
-            "english-social": "📖",
-            physics: "⚛️",
-            chemistry: "🧪",
-            biology: "🧬",
-            history: "🏛️",
-            geography: "🌍",
-            civics: "⚖️",
-            "general-science": "🔬",
-            "social-studies": "👥",
-            "verbal-reasoning": "💬",
-            "quantitative-reasoning": "🔢",
-            "analytical-reasoning": "🧩",
-          };
-          grid.innerHTML = subjects
+
+          // Remove duplicates by ID
+          const uniqueSubjects = [];
+          const seenIds = new Set();
+
+          for (const subject of subjects) {
+            if (!seenIds.has(subject.id)) {
+              seenIds.add(subject.id);
+              uniqueSubjects.push(subject);
+            }
+          }
+
+          console.log("Unique subjects:", uniqueSubjects.length);
+
+          grid.innerHTML = uniqueSubjects
             .map((subject) => {
-              const icon = iconMap[subject.slug] || "📝";
+              const icon = getIcon(subject.slug);
               const paperCount = subject.paper_count || 0;
               const yearRange = subject.latest_year
                 ? `${subject.oldest_year}-${subject.latest_year}`
                 : "Coming Soon";
-              return `<a href="/papers.html?exam=${examSlug}&subject=${subject.slug}${streamSlug ? "&stream=" + streamSlug : ""}" class="subject-card"><span class="subject-icon">${icon}</span><h3>${subject.name}</h3><p>Past exam papers with answers</p><div class="subject-meta"><span>📄 ${paperCount} papers</span><span class="year-range">${yearRange}</span></div></a>`;
+
+              // Build URL for papers page
+              let papersUrl = `/papers.html?exam=${examSlug}&subject=${subject.slug}`;
+              if (streamSlug) papersUrl += `&stream=${streamSlug}`;
+              if (regionSlug) papersUrl += `&region=${regionSlug}`;
+
+              return `
+            <a href="${papersUrl}" class="subject-card">
+              <span class="subject-icon">${icon}</span>
+              <h3>${subject.name}</h3>
+              <p>Past exam papers with answers</p>
+              <div class="subject-meta">
+                <span>📄 ${paperCount} papers</span>
+                <span class="year-range">${yearRange}</span>
+              </div>
+            </a>
+          `;
             })
             .join("");
         } catch (error) {
+          console.error("Error loading subjects:", error);
           grid.innerHTML =
-            '<div class="loading"><i class="fas fa-exclamation-circle"></i>Error loading subjects.</div>';
+            '<div class="loading"><i class="fas fa-exclamation-circle"></i>Error loading subjects.<br>Please try again.</div>';
         }
       }
 
@@ -448,6 +520,7 @@
         });
         window.location.replace("/login");
       }
+
       window.addEventListener("pageshow", function (e) {
         if (e.persisted && !localStorage.getItem("token")) {
           window.location.replace("/login");

@@ -376,26 +376,29 @@
         try {
           const response = await fetch(`/api/exams/${examSlug}/streams`);
           const data = await response.json();
+
           if (data.hasStreams && data.streams.length > 0) {
+            // Show streams (Grade 12)
             grid.innerHTML = data.streams
               .map(
                 (stream) => `
-            <a href="/subjects.html?exam=${examSlug}&stream=${stream.slug}" class="stream-card">
-              <span class="stream-icon">${stream.icon || "📚"}</span>
-              <h3>${stream.name}</h3>
-              <p>${stream.description || ""}</p>
-              <span class="subject-count">${stream.subject_count} Subjects</span>
-              <span class="arrow"><i class="fas fa-arrow-right"></i></span>
-            </a>
-          `,
+        <a href="/subjects.html?exam=${examSlug}&stream=${stream.slug}" class="stream-card">
+          <span class="stream-icon">${stream.icon || "📚"}</span>
+          <h3>${stream.name}</h3>
+          <p>${stream.description || ""}</p>
+          <span class="subject-count">${stream.subject_count} Subjects</span>
+          <span class="arrow"><i class="fas fa-arrow-right"></i></span>
+        </a>
+      `,
               )
               .join("");
           } else {
+            // No streams - go directly to subjects
             window.location.href = `/subjects.html?exam=${examSlug}`;
           }
         } catch (error) {
           grid.innerHTML =
-            '<div class="loading" style="grid-column:1/-1;"><i class="fas fa-exclamation-circle"></i>Error loading streams.</div>';
+            '<div class="loading"><i class="fas fa-exclamation-circle"></i>Error loading streams.</div>';
         }
       }
 

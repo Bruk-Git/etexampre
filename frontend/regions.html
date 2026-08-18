@@ -442,67 +442,65 @@
         ],
       };
 
-      function loadRegions() {
+      async function loadRegions() {
         const grid = document.getElementById("regionGrid");
-        const regions = regionsByExam[examSlug] || [];
 
-        if (regions.length === 0) {
-          grid.innerHTML =
-            '<div class="loading"><i class="fas fa-exclamation-circle"></i>No regions found for this exam.</div>';
-          return;
-        }
+        try {
+          const response = await fetch(`/api/exams/${examSlug}/regions`);
+          const data = await response.json();
 
-        const regionIcons = {
-          "Addis Ababa": "🏙️",
-          Afar: "🏜️",
-          Amhara: "🏔️",
-          Benishangul: "🌳",
-          "Central Ethiopia": "🌍",
-          "Dire Dawa": "🏙️",
-          Gambela: "🌊",
-          Gambella: "🌊",
-          Harari: "🕌",
-          Oromia: "🌾",
-          Sidama: "☕",
-          Somali: "🐪",
-          "South Ethiopia": "🌍",
-          "South West Ethiopia": "🌿",
-          Tigray: "⛰️",
-        };
+          if (data.hasRegions && data.regions.length > 0) {
+            const regions = data.regions;
+            const regionIcons = {
+              "Addis Ababa": "🏙️",
+              Afar: "🏜️",
+              Amhara: "🏔️",
+              Benishangul: "🌳",
+              "Central Ethiopia": "🌍",
+              "Dire Dawa": "🏙️",
+              Gambela: "🌊",
+              Gambella: "🌊",
+              Harari: "🕌",
+              Oromia: "🌾",
+              Sidama: "☕",
+              Somali: "🐪",
+              "South Ethiopia": "🌍",
+              "South West Ethiopia": "🌿",
+              Tigray: "⛰️",
+            };
 
-        function getIcon(regionName) {
-          for (const [key, icon] of Object.entries(regionIcons)) {
-            if (regionName.includes(key)) return icon;
-          }
-          return "📍";
-        }
+            function getIcon(regionName) {
+              for (const [key, icon] of Object.entries(regionIcons)) {
+                if (regionName.includes(key)) return icon;
+              }
+              return "📍";
+            }
 
-        // Create slug from region name
-        function createSlug(name) {
-          return name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-|-$/g, "");
-        }
-
-        grid.innerHTML = regions
-          .map((region) => {
-            const slug = createSlug(region);
-            const icon = getIcon(region);
-            return `
-          <a href="/subjects.html?exam=${examSlug}&region=${slug}" class="region-card">
+            grid.innerHTML = regions
+              .map((region) => {
+                const icon = getIcon(region.name);
+                return `
+          <a href="/subjects.html?exam=${examSlug}&region=${region.slug}" class="region-card">
             <span class="region-icon">${icon}</span>
             <div class="region-info">
-              <h3>${region}</h3>
-              <span>Click to view subjects</span>
+              <h3>${region.name}</h3>
+              <span>${region.subject_count} subjects</span>
             </div>
             <span class="region-arrow"><i class="fas fa-chevron-right"></i></span>
           </a>
         `;
-          })
-          .join("");
+              })
+              .join("");
+          } else {
+            grid.innerHTML =
+              '<div class="loading"><i class="fas fa-exclamation-circle"></i>No regions found.</div>';
+          }
+        } catch (error) {
+          console.error("Error loading regions:", error);
+          grid.innerHTML =
+            '<div class="loading"><i class="fas fa-exclamation-circle"></i>Error loading regions.</div>';
+        }
       }
-
       function logout() {
         localStorage.clear();
         sessionStorage.clear();
