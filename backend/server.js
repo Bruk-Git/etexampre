@@ -544,7 +544,97 @@ app.get("/api/admin/stats", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// ==========================================
+// PROFILE ROUTES
+// ==========================================
 
+// GET PROFILE
+app.get("/api/auth/profile", async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({ error: "No token provided." });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "defaultSecretKey123",
+    );
+
+    const result = await pool.query(
+      `SELECT id, full_name, email, phone, grade, institution, role, last_login, created_at
+       FROM users WHERE id = $1 AND is_active = true`,
+      [decoded.id],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error("Profile fetch error:", error.message);
+    res.status(500).json({ error: "Failed to fetch profile." });
+  }
+});
+
+// UPDATE PROFILE
+app.put("/api/auth/profile", async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({ error: "No token provided." });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "defaultSecretKey123",
+    );
+
+    const { fullName, phone, grade, institution } = req.body;
+
+    // Validate
+    if (fullName && fullName.trim().length < 2) {
+      return res
+        .status(400)
+        .json({ error: "Name must be at least 2 characters." });
+    }
+
+    const result = await pool.query(
+      `UPDATE users 
+       SET full_name = COALESCE($1, full_name),
+           phone = COALESCE($2, phone),
+           grade = COALESCE($3, grade),
+           institution = COALESCE($4, institution),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5
+       RETURNING id, full_name, email, phone, grade, institution, role`,
+      [
+        fullName || null,
+        phone || null,
+        grade || null,
+        institution || null,
+        decoded.id,
+      ],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.json({
+      message: "Profile updated successfully!",
+      user: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Profile update error:", error.message);
+    res.status(500).json({ error: "Failed to update profile." });
+  }
+});
 // ==========================================
 // FRONTEND ROUTES
 // ==========================================
@@ -600,7 +690,13 @@ app.get("/regions", (req, res) => {
 app.get("/admin", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "admin.html"));
 });
+app.get("/profile", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "profile.html"));
+});
 
+app.get("/profile.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "profile.html"));
+});
 // ==========================================
 // ERROR HANDLING
 // ==========================================
