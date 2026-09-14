@@ -430,9 +430,102 @@ app.post("/api/papers/:id/download", async (req, res) => {
 });
 
 // ==========================================
-// ADMIN ROUTES
+// ADMIN MANAGEMENT ROUTES
 // ==========================================
 
+// GET ALL SUBJECTS (Admin)
+app.get("/api/admin/subjects", async (req, res) => {
+  try {
+    const subjects = await pool.query(`
+      SELECT 
+        s.id,
+        s.name,
+        s.slug,
+        s.display_order,
+        et.name as exam_name,
+        et.slug as exam_slug,
+        es.name as stream_name,
+        r.name as region_name,
+        (SELECT COUNT(*) FROM question_papers qp WHERE qp.subject_id = s.id) as paper_count
+      FROM subjects s
+      JOIN exam_types et ON s.exam_type_id = et.id
+      LEFT JOIN exam_streams es ON s.stream_id = es.id
+      LEFT JOIN regions r ON s.region_id = r.id
+      ORDER BY et.display_order, es.display_order, r.display_order, s.display_order
+    `);
+    res.json(subjects.rows);
+  } catch (error) {
+    console.error("Error fetching subjects:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET ALL ADMINS
+app.get("/api/admin/admins", async (req, res) => {
+  try {
+    const admins = await pool.query(`
+      SELECT id, full_name, email, phone, role, created_at
+      FROM users 
+      WHERE role = 'admin'
+      ORDER BY created_at DESC
+    `);
+    res.json(admins.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// CREATE NEW ADMIN (from within admin panel)
+app.post("/api/admin/create-admin", async (req, res) => {
+  try {
+    const { fullName, email, phone, password } = req.body;
+
+    if (!fullName || !email || !password) {
+      return res
+        .status(400)
+        .json({ error: "All required fields must be filled." });
+    }
+
+    if (password.length < 8) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 8 characters." });
+    }
+
+    // Check if email exists
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [
+      email.toLowerCase().trim(),
+    ]);
+
+    if (existing.rows.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "This email is already registered." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      `INSERT INTO users (full_name, email, phone, password, role) 
+       VALUES ($1, $2, $3, $4, 'admin') 
+       RETURNING id, full_name, email, phone, role, created_at`,
+      [
+        fullName.trim(),
+        email.toLowerCase().trim(),
+        phone || null,
+        hashedPassword,
+      ],
+    );
+
+    res.status(201).json({
+      message: "Admin created successfully!",
+      admin: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Admin creation error:", error.message);
+    res.status(500).json({ error: "Failed to create admin." });
+  }
+});
 // UPLOAD PAPER
 // UPLOAD PAPER (Updated with region support)
 app.post("/api/admin/upload", upload.single("file"), async (req, res) => {
@@ -528,22 +621,31 @@ app.post("/api/admin/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-// GET ALL PAPERS (ADMIN)
+// GET ALL PAPERS (ADMIN) - with full details
 app.get("/api/admin/papers", async (req, res) => {
   try {
     const papers = await pool.query(`
-      SELECT qp.*, s.name as subject_name, et.name as exam_name
+      SELECT 
+        qp.*, 
+        s.name as subject_name,
+        s.slug as subject_slug,
+        et.name as exam_name,
+        et.slug as exam_slug,
+        es.name as stream_name,
+        r.name as region_name
       FROM question_papers qp
       JOIN subjects s ON qp.subject_id = s.id
       JOIN exam_types et ON qp.exam_type_id = et.id
+      LEFT JOIN exam_streams es ON qp.stream_id = es.id
+      LEFT JOIN regions r ON qp.region_id = r.id
       ORDER BY qp.created_at DESC
     `);
     res.json(papers.rows);
   } catch (error) {
+    console.error("Error fetching papers:", error.message);
     res.status(500).json({ error: error.message });
   }
 });
-
 // DELETE PAPER
 app.delete("/api/admin/papers/:id", async (req, res) => {
   try {
