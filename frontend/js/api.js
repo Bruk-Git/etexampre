@@ -71,3 +71,4 @@ const UploadAPI = {
     }).then((res) => res.json());
   },
 };
+

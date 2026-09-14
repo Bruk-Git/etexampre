@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Register Admin - Ethiopian Exam Prep</title>
+    <link rel="icon" href="images/logo.jpg" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .admin-register-container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        width: 100%;
+        max-width: 480px;
+        padding: 40px;
+      }
+      .admin-header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .admin-header .admin-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff9800, #ff5722);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 15px;
+        font-size: 2rem;
+        color: white;
+        box-shadow: 0 10px 30px rgba(255, 152, 0, 0.3);
+      }
+      .admin-header h1 {
+        font-size: 1.8rem;
+        color: #1a1a2e;
+        margin-bottom: 5px;
+      }
+      .admin-header p {
+        color: #5a6c7d;
+        font-size: 0.9rem;
+      }
+      .admin-badge {
+        display: inline-block;
+        background: #fff3e6;
+        color: #ff9800;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-top: 10px;
+      }
+      .alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        display: none;
+      }
+      .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+        display: block;
+      }
+      .alert-success {
+        background: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        display: block;
+      }
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.85rem;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: all 0.3s;
+        background: #f9fafb;
+      }
+      .form-group input:focus {
+        outline: none;
+        border-color: #ff9800;
+        box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+        background: white;
+      }
+      .register-btn {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #ff9800, #ff5722);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .register-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(255, 152, 0, 0.4);
+      }
+      .register-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .loading-spinner {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .back-link {
+        text-align: center;
+        margin-top: 20px;
+      }
+      .back-link a {
+        color: #5a6c7d;
+        text-decoration: none;
+        font-size: 0.85rem;
+      }
+      .back-link a:hover {
+        color: #ff9800;
+      }
+      @media (max-width: 500px) {
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="admin-register-container">
+      <div class="admin-header">
+        <div class="admin-icon"><i class="fas fa-user-shield"></i></div>
+        <h1>Register Admin</h1>
+        <p>Create a new admin account</p>
+        <span class="admin-badge">🔒 Admin Only</span>
+      </div>
+
+      <div id="alertBox" class="alert"></div>
+
+      <form id="adminRegisterForm" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input
+              type="text"
+              id="fullName"
+              placeholder="Admin name"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label>Email *</label>
+            <input
+              type="email"
+              id="email"
+              placeholder="admin@example.com"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Phone (Optional)</label>
+          <input type="tel" id="phone" placeholder="09XX XXX XXXX" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Password *</label>
+            <input
+              type="password"
+              id="password"
+              placeholder="Min. 8 characters"
+              required
+              minlength="8"
+            />
+          </div>
+          <div class="form-group">
+            <label>Confirm Password *</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              placeholder="Re-enter password"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Admin Secret Key *</label>
+          <input
+            type="password"
+            id="secretKey"
+            placeholder="Enter admin secret key"
+            required
+          />
+        </div>
+
+        <button type="submit" class="register-btn" id="registerBtn">
+          <i class="fas fa-user-plus"></i> Create Admin Account
+        </button>
+      </form>
+
+      <div class="back-link">
+        <a href="/admin-login"
+          ><i class="fas fa-arrow-left"></i> Back to Admin Login</a
+        >
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("adminRegisterForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const fullName = document.getElementById("fullName").value.trim();
+          const email = document.getElementById("email").value.trim();
+          const phone = document.getElementById("phone").value.trim();
+          const password = document.getElementById("password").value;
+          const confirmPassword =
+            document.getElementById("confirmPassword").value;
+          const secretKey = document.getElementById("secretKey").value;
+          const alertBox = document.getElementById("alertBox");
+          const registerBtn = document.getElementById("registerBtn");
+
+          if (
+            !fullName ||
+            !email ||
+            !password ||
+            !confirmPassword ||
+            !secretKey
+          ) {
+            alertBox.textContent = "Please fill all required fields.";
+            alertBox.className = "alert alert-error";
+            return;
+          }
+
+          if (password !== confirmPassword) {
+            alertBox.textContent = "Passwords do not match.";
+            alertBox.className = "alert alert-error";
+            return;
+          }
+
+          if (password.length < 8) {
+            alertBox.textContent = "Password must be at least 8 characters.";
+            alertBox.className = "alert alert-error";
+            return;
+          }
+
+          registerBtn.disabled = true;
+          registerBtn.innerHTML =
+            '<span class="loading-spinner"></span> Creating Admin...';
+
+          try {
+            const response = await fetch("/api/auth/admin-register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fullName,
+                email,
+                phone,
+                password,
+                secretKey,
+              }),
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+              alertBox.textContent =
+                "✅ Admin created! Redirecting to login...";
+              alertBox.className = "alert alert-success";
+              setTimeout(() => {
+                window.location.href = "/admin-login";
+              }, 1500);
+            } else {
+              alertBox.textContent = data.error || "Registration failed.";
+              alertBox.className = "alert alert-error";
+              registerBtn.disabled = false;
+              registerBtn.innerHTML =
+                '<i class="fas fa-user-plus"></i> Create Admin Account';
+            }
+          } catch (error) {
+            alertBox.textContent = "Connection error. Please try again.";
+            alertBox.className = "alert alert-error";
+            registerBtn.disabled = false;
+            registerBtn.innerHTML =
+              '<i class="fas fa-user-plus"></i> Create Admin Account';
+          }
+        });
+    </script>
+  </body>
+</html>

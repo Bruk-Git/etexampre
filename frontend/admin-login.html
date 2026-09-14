@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Login - Ethiopian Exam Prep</title>
+    <link rel="icon" href="images/logo.jpg" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #1a1a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .admin-login-container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        width: 100%;
+        max-width: 420px;
+        padding: 40px;
+      }
+      .admin-header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .admin-header .admin-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff9800, #ff5722);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 15px;
+        font-size: 2rem;
+        color: white;
+        box-shadow: 0 10px 30px rgba(255, 152, 0, 0.3);
+      }
+      .admin-header h1 {
+        font-size: 1.8rem;
+        color: #1a1a2e;
+        margin-bottom: 5px;
+      }
+      .admin-header p {
+        color: #5a6c7d;
+        font-size: 0.9rem;
+      }
+      .admin-badge {
+        display: inline-block;
+        background: #fff3e6;
+        color: #ff9800;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-top: 10px;
+      }
+      .alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        display: none;
+      }
+      .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+        display: block;
+      }
+      .alert-success {
+        background: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        display: block;
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.85rem;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: all 0.3s;
+        background: #f9fafb;
+      }
+      .form-group input:focus {
+        outline: none;
+        border-color: #ff9800;
+        box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
+        background: white;
+      }
+      .login-btn {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #ff9800, #ff5722);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .login-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(255, 152, 0, 0.4);
+      }
+      .login-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .loading-spinner {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .back-link {
+        text-align: center;
+        margin-top: 20px;
+      }
+      .back-link a {
+        color: #5a6c7d;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: color 0.3s;
+      }
+      .back-link a:hover {
+        color: #ff9800;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="admin-login-container">
+      <div class="admin-header">
+        <div class="admin-icon"><i class="fas fa-shield-alt"></i></div>
+        <h1>Admin Login</h1>
+        <p>Access the admin dashboard</p>
+        <span class="admin-badge">🔒 Restricted Access</span>
+      </div>
+
+      <div id="alertBox" class="alert"></div>
+
+      <form id="adminLoginForm" novalidate>
+        <div class="form-group">
+          <label>Admin Email</label>
+          <input
+            type="email"
+            id="email"
+            placeholder="admin@example.com"
+            required
+            autocomplete="email"
+          />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input
+            type="password"
+            id="password"
+            placeholder="Enter admin password"
+            required
+            autocomplete="current-password"
+          />
+        </div>
+        <button type="submit" class="login-btn" id="loginBtn">
+          <i class="fas fa-lock"></i> Login to Admin Panel
+        </button>
+      </form>
+
+      <div class="back-link">
+        <a href="/"><i class="fas fa-arrow-left"></i> Back to Home</a>
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("adminLoginForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const email = document.getElementById("email").value.trim();
+          const password = document.getElementById("password").value;
+          const alertBox = document.getElementById("alertBox");
+          const loginBtn = document.getElementById("loginBtn");
+
+          if (!email || !password) {
+            alertBox.textContent = "Please enter email and password.";
+            alertBox.className = "alert alert-error";
+            return;
+          }
+
+          loginBtn.disabled = true;
+          loginBtn.innerHTML =
+            '<span class="loading-spinner"></span> Logging in...';
+
+          try {
+            const response = await fetch("/api/auth/admin-login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password }),
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+              localStorage.setItem("token", data.token);
+              localStorage.setItem("user", JSON.stringify(data.user));
+              localStorage.setItem("isAdmin", "true");
+
+              alertBox.textContent =
+                "✅ Admin login successful! Redirecting...";
+              alertBox.className = "alert alert-success";
+
+              setTimeout(() => {
+                window.location.href = "/admin";
+              }, 1000);
+            } else {
+              alertBox.textContent = data.error || "Invalid admin credentials.";
+              alertBox.className = "alert alert-error";
+              loginBtn.disabled = false;
+              loginBtn.innerHTML =
+                '<i class="fas fa-lock"></i> Login to Admin Panel';
+            }
+          } catch (error) {
+            alertBox.textContent = "Connection error. Please try again.";
+            alertBox.className = "alert alert-error";
+            loginBtn.disabled = false;
+            loginBtn.innerHTML =
+              '<i class="fas fa-lock"></i> Login to Admin Panel';
+          }
+        });
+
+      // Redirect if already logged in as admin
+      if (localStorage.getItem("isAdmin") === "true") {
+        window.location.href = "/admin";
+      }
+    </script>
+  </body>
+</html>

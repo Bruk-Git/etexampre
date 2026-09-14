@@ -263,6 +263,48 @@ app.get("/api/exams/:examSlug/streams", async (req, res) => {
 });
 
 // GET SUBJECTS
+// GET SUBJECTS
+app.get("/api/exams/:examSlug/subjects", async (req, res) => {
+  try {
+    const { examSlug } = req.params;
+    const { streamSlug } = req.query;
+
+    console.log("🔍 Fetching subjects for:", examSlug, "stream:", streamSlug);
+
+    let query = `
+      SELECT s.*, 
+        COUNT(DISTINCT qp.id) as paper_count,
+        MIN(qp.year) as oldest_year,
+        MAX(qp.year) as latest_year
+      FROM subjects s
+      JOIN exam_types et ON s.exam_type_id = et.id
+      LEFT JOIN question_papers qp ON qp.subject_id = s.id
+      WHERE et.slug = $1
+    `;
+
+    const params = [examSlug];
+
+    if (streamSlug && streamSlug !== "") {
+      query += ` AND s.stream_id = (SELECT id FROM exam_streams WHERE slug = $2)`;
+      params.push(streamSlug);
+    } else {
+      query += ` AND s.stream_id IS NULL`;
+    }
+
+    // Also make sure region_id IS NULL for non-region exams
+    query += ` AND s.region_id IS NULL`;
+
+    query += ` GROUP BY s.id ORDER BY s.display_order ASC`;
+
+    const subjects = await pool.query(query, params);
+    console.log("✅ Subjects found:", subjects.rows.length);
+
+    res.json(subjects.rows);
+  } catch (error) {
+    console.error("Error fetching subjects:", error.message);
+    res.status(500).json({ error: "Failed to load subjects" });
+  }
+});
 // GET SUBJECTS FOR REGION
 app.get("/api/exams/:examSlug/subjects-by-region", async (req, res) => {
   try {
@@ -636,6 +678,123 @@ app.put("/api/auth/profile", async (req, res) => {
   }
 });
 // ==========================================
+// ADMIN AUTH ROUTES
+// ==========================================
+
+// ADMIN LOGIN
+app.post("/api/auth/admin-login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ error: "Email and password are required." });
+    }
+
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email = $1 AND role = 'admin' AND is_active = true",
+      [email.toLowerCase().trim()],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Invalid admin credentials." });
+    }
+
+    const user = result.rows[0];
+    const validPassword = await bcrypt.compare(password, user.password);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: "Invalid admin credentials." });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: "admin",
+        fullName: user.full_name,
+      },
+      process.env.JWT_SECRET || "defaultSecretKey123",
+      { expiresIn: "7d" },
+    );
+
+    res.json({
+      message: "Admin login successful!",
+      token: token,
+      user: {
+        id: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        role: "admin",
+      },
+    });
+  } catch (error) {
+    console.error("Admin login error:", error.message);
+    res.status(500).json({ error: "Login failed." });
+  }
+});
+
+// ADMIN REGISTER (Requires secret key)
+app.post("/api/auth/admin-register", async (req, res) => {
+  try {
+    const { fullName, email, phone, password, secretKey } = req.body;
+
+    // Validate secret key
+    const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "AdminSecret2026!";
+
+    if (secretKey !== ADMIN_SECRET_KEY) {
+      return res.status(403).json({ error: "Invalid admin secret key." });
+    }
+
+    if (!fullName || !email || !password) {
+      return res
+        .status(400)
+        .json({ error: "Full name, email, and password are required." });
+    }
+
+    if (password.length < 8) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 8 characters." });
+    }
+
+    // Check if email exists
+    const existingUser = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email.toLowerCase().trim()],
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "This email is already registered." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      `INSERT INTO users (full_name, email, phone, password, role) 
+       VALUES ($1, $2, $3, $4, 'admin') 
+       RETURNING id, full_name, email, role`,
+      [
+        fullName.trim(),
+        email.toLowerCase().trim(),
+        phone || null,
+        hashedPassword,
+      ],
+    );
+
+    res.status(201).json({
+      message: "Admin account created successfully!",
+      user: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Admin registration error:", error.message);
+    res.status(500).json({ error: "Registration failed." });
+  }
+});
+// ==========================================
 // FRONTEND ROUTES
 // ==========================================
 
@@ -696,6 +855,13 @@ app.get("/profile", (req, res) => {
 
 app.get("/profile.html", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "frontend", "profile.html"));
+});
+app.get("/admin-login", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "admin-login.html"));
+});
+
+app.get("/admin-register", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "admin-register.html"));
 });
 // ==========================================
 // ERROR HANDLING
