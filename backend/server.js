@@ -7,13 +7,107 @@ const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 // Import pool from database.js
 const pool = require("./database");
-
 const app = express();
 const PORT = process.env.PORT || 3000;
+// ==========================================
+// SECURITY MIDDLEWARE
+// ==========================================
 
+// 1. Helmet - Security headers
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://cdnjs.cloudflare.com",
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Allow images/files
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow file serving
+  }),
+);
+
+// 2. Rate Limiting - Prevent brute force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per 15 min
+  message: { error: "Too many attempts. Please try again in 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: { error: "Too many requests. Please slow down." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // 20 uploads per hour
+  message: { error: "Upload limit reached. Try again later." },
+});
+
+// Apply general rate limit to all API routes
+app.use("/api", generalLimiter);
+
+// Apply strict rate limit to auth routes
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/admin-login", authLimiter);
+app.use("/api/auth/admin-register", authLimiter);
+
+// ==========================================
+// AUTHENTICATION MIDDLEWARE
+// ==========================================
+
+// Verify JWT token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "No token provided. Please login." });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "defaultSecretKey123",
+    );
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: "Invalid or expired token." });
+  }
+}
+
+// Check if user is admin
+function isAdmin(req, res, next) {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+  next();
+}
 // ==========================================
 // MULTER CONFIGURATION
 // ==========================================
@@ -430,199 +524,109 @@ app.post("/api/papers/:id/download", async (req, res) => {
 });
 
 // ==========================================
-// ADMIN MANAGEMENT ROUTES
+// ADMIN ROUTES (Protected - Admin only)
 // ==========================================
 
-// GET ALL SUBJECTS (Admin)
-app.get("/api/admin/subjects", async (req, res) => {
-  try {
-    const subjects = await pool.query(`
-      SELECT 
-        s.id,
-        s.name,
-        s.slug,
-        s.display_order,
-        et.name as exam_name,
-        et.slug as exam_slug,
-        es.name as stream_name,
-        r.name as region_name,
-        (SELECT COUNT(*) FROM question_papers qp WHERE qp.subject_id = s.id) as paper_count
-      FROM subjects s
-      JOIN exam_types et ON s.exam_type_id = et.id
-      LEFT JOIN exam_streams es ON s.stream_id = es.id
-      LEFT JOIN regions r ON s.region_id = r.id
-      ORDER BY et.display_order, es.display_order, r.display_order, s.display_order
-    `);
-    res.json(subjects.rows);
-  } catch (error) {
-    console.error("Error fetching subjects:", error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
+// UPLOAD PAPER (Admin only)
+app.post(
+  "/api/admin/upload",
+  authenticateToken,
+  isAdmin,
+  uploadLimiter,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const { title, year, examTypeSlug, subjectSlug, streamSlug, regionSlug } =
+        req.body;
 
-// GET ALL ADMINS
-app.get("/api/admin/admins", async (req, res) => {
-  try {
-    const admins = await pool.query(`
-      SELECT id, full_name, email, phone, role, created_at
-      FROM users 
-      WHERE role = 'admin'
-      ORDER BY created_at DESC
-    `);
-    res.json(admins.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded." });
+      }
 
-// CREATE NEW ADMIN (from within admin panel)
-app.post("/api/admin/create-admin", async (req, res) => {
-  try {
-    const { fullName, email, phone, password } = req.body;
-
-    if (!fullName || !email || !password) {
-      return res
-        .status(400)
-        .json({ error: "All required fields must be filled." });
-    }
-
-    if (password.length < 8) {
-      return res
-        .status(400)
-        .json({ error: "Password must be at least 8 characters." });
-    }
-
-    // Check if email exists
-    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [
-      email.toLowerCase().trim(),
-    ]);
-
-    if (existing.rows.length > 0) {
-      return res
-        .status(409)
-        .json({ error: "This email is already registered." });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const result = await pool.query(
-      `INSERT INTO users (full_name, email, phone, password, role) 
-       VALUES ($1, $2, $3, $4, 'admin') 
-       RETURNING id, full_name, email, phone, role, created_at`,
-      [
-        fullName.trim(),
-        email.toLowerCase().trim(),
-        phone || null,
-        hashedPassword,
-      ],
-    );
-
-    res.status(201).json({
-      message: "Admin created successfully!",
-      admin: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Admin creation error:", error.message);
-    res.status(500).json({ error: "Failed to create admin." });
-  }
-});
-// UPLOAD PAPER
-// UPLOAD PAPER (Updated with region support)
-app.post("/api/admin/upload", upload.single("file"), async (req, res) => {
-  try {
-    const { title, year, examTypeSlug, subjectSlug, streamSlug, regionSlug } =
-      req.body;
-
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded." });
-    }
-
-    // Find exam type
-    const examResult = await pool.query(
-      "SELECT id FROM exam_types WHERE slug = $1",
-      [examTypeSlug],
-    );
-    if (examResult.rows.length === 0) {
-      return res.status(404).json({ error: "Exam type not found" });
-    }
-    const examId = examResult.rows[0].id;
-
-    // Find subject
-    let subjectResult;
-    if (regionSlug) {
-      // Find subject by region
-      subjectResult = await pool.query(
-        `
-        SELECT s.id FROM subjects s
-        JOIN regions r ON s.region_id = r.id
-        WHERE s.slug = $1 AND s.exam_type_id = $2 AND r.slug = $3
-      `,
-        [subjectSlug, examId, regionSlug],
+      // Find exam type
+      const examResult = await pool.query(
+        "SELECT id FROM exam_types WHERE slug = $1",
+        [examTypeSlug],
       );
-    } else {
-      // Find regular subject
-      subjectResult = await pool.query(
-        "SELECT id FROM subjects WHERE slug = $1 AND exam_type_id = $2",
-        [subjectSlug, examId],
-      );
-    }
+      if (examResult.rows.length === 0) {
+        return res.status(404).json({ error: "Exam type not found" });
+      }
+      const examId = examResult.rows[0].id;
 
-    if (subjectResult.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "Subject not found for this exam/region" });
-    }
-    const subjectId = subjectResult.rows[0].id;
+      // Find subject
+      let subjectResult;
+      if (regionSlug) {
+        subjectResult = await pool.query(
+          `SELECT s.id FROM subjects s
+         JOIN regions r ON s.region_id = r.id
+         WHERE s.slug = $1 AND s.exam_type_id = $2 AND r.slug = $3`,
+          [subjectSlug, examId, regionSlug],
+        );
+      } else {
+        subjectResult = await pool.query(
+          "SELECT id FROM subjects WHERE slug = $1 AND exam_type_id = $2",
+          [subjectSlug, examId],
+        );
+      }
 
-    // Find stream if provided
-    let streamId = null;
-    if (streamSlug) {
-      const streamResult = await pool.query(
-        "SELECT id FROM exam_streams WHERE slug = $1",
-        [streamSlug],
-      );
-      if (streamResult.rows.length > 0) streamId = streamResult.rows[0].id;
-    }
+      if (subjectResult.rows.length === 0) {
+        return res.status(404).json({ error: "Subject not found." });
+      }
+      const subjectId = subjectResult.rows[0].id;
 
-    // Find region if provided
-    let regionId = null;
-    if (regionSlug) {
-      const regionResult = await pool.query(
-        "SELECT id FROM regions WHERE slug = $1 AND exam_type_id = $2",
-        [regionSlug, examId],
-      );
-      if (regionResult.rows.length > 0) regionId = regionResult.rows[0].id;
-    }
+      let streamId = null;
+      if (streamSlug) {
+        const sr = await pool.query(
+          "SELECT id FROM exam_streams WHERE slug = $1",
+          [streamSlug],
+        );
+        if (sr.rows.length > 0) streamId = sr.rows[0].id;
+      }
 
-    // Insert paper
-    const result = await pool.query(
-      `INSERT INTO question_papers (title, year, exam_type_id, subject_id, stream_id, region_id, file_path, file_size)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      let regionId = null;
+      if (regionSlug) {
+        const rr = await pool.query(
+          "SELECT id FROM regions WHERE slug = $1 AND exam_type_id = $2",
+          [regionSlug, examId],
+        );
+        if (rr.rows.length > 0) regionId = rr.rows[0].id;
+      }
+
+      const result = await pool.query(
+        `INSERT INTO question_papers (title, year, exam_type_id, subject_id, stream_id, region_id, file_path, file_size, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, title`,
-      [
-        title || `${subjectSlug} ${year}`,
-        parseInt(year),
-        examId,
-        subjectId,
-        streamId,
-        regionId,
-        "/uploads/" + req.file.filename,
-        (req.file.size / (1024 * 1024)).toFixed(1) + " MB",
-      ],
-    );
+        [
+          title || `${subjectSlug} ${year}`,
+          parseInt(year),
+          examId,
+          subjectId,
+          streamId,
+          regionId,
+          "/uploads/" + req.file.filename,
+          (req.file.size / (1024 * 1024)).toFixed(1) + " MB",
+          req.user.id,
+        ],
+      );
 
-    res.json({
-      message: "Paper uploaded successfully!",
-      paper: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Upload error:", error.message);
-    res.status(500).json({ error: "Upload failed: " + error.message });
-  }
-});
+      console.log(
+        `✅ Paper uploaded by admin ${req.user.email}:`,
+        result.rows[0].title,
+      );
 
-// GET ALL PAPERS (ADMIN) - with full details
-app.get("/api/admin/papers", async (req, res) => {
+      res.json({
+        message: "Paper uploaded successfully!",
+        paper: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Upload error:", error.message);
+      res.status(500).json({ error: "Upload failed: " + error.message });
+    }
+  },
+);
+
+// GET ALL PAPERS (Admin only)
+app.get("/api/admin/papers", authenticateToken, isAdmin, async (req, res) => {
   try {
     const papers = await pool.query(`
       SELECT 
@@ -646,23 +650,29 @@ app.get("/api/admin/papers", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-// DELETE PAPER
-app.delete("/api/admin/papers/:id", async (req, res) => {
-  try {
-    await pool.query("DELETE FROM question_papers WHERE id = $1", [
-      req.params.id,
-    ]);
-    res.json({ message: "Paper deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
-// GET ALL USERS
-app.get("/api/admin/users", async (req, res) => {
+// DELETE PAPER (Admin only)
+app.delete(
+  "/api/admin/papers/:id",
+  authenticateToken,
+  isAdmin,
+  async (req, res) => {
+    try {
+      await pool.query("DELETE FROM question_papers WHERE id = $1", [
+        req.params.id,
+      ]);
+      res.json({ message: "Paper deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// GET ALL USERS (Admin only)
+app.get("/api/admin/users", authenticateToken, isAdmin, async (req, res) => {
   try {
     const users = await pool.query(`
-      SELECT id, full_name, email, grade, institution, role, is_active, created_at
+      SELECT id, full_name, email, phone, grade, institution, role, is_active, created_at
       FROM users ORDER BY created_at DESC
     `);
     res.json(users.rows);
@@ -671,8 +681,44 @@ app.get("/api/admin/users", async (req, res) => {
   }
 });
 
-// GET STATS
-app.get("/api/admin/stats", async (req, res) => {
+// GET ALL ADMINS (Admin only)
+app.get("/api/admin/admins", authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const admins = await pool.query(`
+      SELECT id, full_name, email, phone, role, created_at
+      FROM users WHERE role = 'admin'
+      ORDER BY created_at DESC
+    `);
+    res.json(admins.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET ALL SUBJECTS (Admin only)
+app.get("/api/admin/subjects", authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const subjects = await pool.query(`
+      SELECT 
+        s.id, s.name, s.slug, s.display_order,
+        et.name as exam_name, et.slug as exam_slug,
+        es.name as stream_name,
+        r.name as region_name,
+        (SELECT COUNT(*) FROM question_papers qp WHERE qp.subject_id = s.id) as paper_count
+      FROM subjects s
+      JOIN exam_types et ON s.exam_type_id = et.id
+      LEFT JOIN exam_streams es ON s.stream_id = es.id
+      LEFT JOIN regions r ON s.region_id = r.id
+      ORDER BY et.display_order, es.display_order, r.display_order, s.display_order
+    `);
+    res.json(subjects.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET STATS (Admin only)
+app.get("/api/admin/stats", authenticateToken, isAdmin, async (req, res) => {
   try {
     const papers = await pool.query(
       "SELECT COUNT(*) as count, COALESCE(SUM(download_count), 0) as downloads FROM question_papers",
@@ -688,29 +734,78 @@ app.get("/api/admin/stats", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// CREATE NEW ADMIN (Admin only)
+app.post(
+  "/api/admin/create-admin",
+  authenticateToken,
+  isAdmin,
+  async (req, res) => {
+    try {
+      const { fullName, email, phone, password } = req.body;
+
+      if (!fullName || !email || !password) {
+        return res
+          .status(400)
+          .json({ error: "All required fields must be filled." });
+      }
+
+      if (password.length < 8) {
+        return res
+          .status(400)
+          .json({ error: "Password must be at least 8 characters." });
+      }
+
+      const existing = await pool.query(
+        "SELECT id FROM users WHERE email = $1",
+        [email.toLowerCase().trim()],
+      );
+
+      if (existing.rows.length > 0) {
+        return res
+          .status(409)
+          .json({ error: "This email is already registered." });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const result = await pool.query(
+        `INSERT INTO users (full_name, email, phone, password, role) 
+       VALUES ($1, $2, $3, $4, 'admin') 
+       RETURNING id, full_name, email, phone, role, created_at`,
+        [
+          fullName.trim(),
+          email.toLowerCase().trim(),
+          phone || null,
+          hashedPassword,
+        ],
+      );
+
+      console.log(
+        `✅ New admin created by ${req.user.email}: ${result.rows[0].email}`,
+      );
+
+      res.status(201).json({
+        message: "Admin created successfully!",
+        admin: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Admin creation error:", error.message);
+      res.status(500).json({ error: "Failed to create admin." });
+    }
+  },
+);
 // ==========================================
 // PROFILE ROUTES
 // ==========================================
 
-// GET PROFILE
-app.get("/api/auth/profile", async (req, res) => {
+// GET PROFILE (Protected)
+app.get("/api/auth/profile", authenticateToken, async (req, res) => {
   try {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1];
-
-    if (!token) {
-      return res.status(401).json({ error: "No token provided." });
-    }
-
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "defaultSecretKey123",
-    );
-
     const result = await pool.query(
       `SELECT id, full_name, email, phone, grade, institution, role, last_login, created_at
        FROM users WHERE id = $1 AND is_active = true`,
-      [decoded.id],
+      [req.user.id],
     );
 
     if (result.rows.length === 0) {
@@ -724,8 +819,8 @@ app.get("/api/auth/profile", async (req, res) => {
   }
 });
 
-// UPDATE PROFILE
-app.put("/api/auth/profile", async (req, res) => {
+// UPDATE PROFILE (Protected)
+app.put("/api/auth/profile", authenticateToken, async (req, res) => {
   try {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
@@ -741,11 +836,10 @@ app.put("/api/auth/profile", async (req, res) => {
 
     const { fullName, phone, grade, institution } = req.body;
 
-    // Validate
-    if (fullName && fullName.trim().length < 2) {
+    if (fullName && fullName.trim().length < 3) {
       return res
         .status(400)
-        .json({ error: "Name must be at least 2 characters." });
+        .json({ error: "Name must be at least 3 characters." });
     }
 
     const result = await pool.query(
@@ -762,7 +856,7 @@ app.put("/api/auth/profile", async (req, res) => {
         phone || null,
         grade || null,
         institution || null,
-        decoded.id,
+        req.user.id,
       ],
     );
 
